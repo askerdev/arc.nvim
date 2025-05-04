@@ -1,0 +1,79 @@
+local M = {}
+
+---@class HunkDiffEntry
+---@field start number
+---@field count number
+
+---@class HunkHeader
+---@field prev HunkDiffEntry
+---@field now HunkDiffEntry
+
+---@param line string
+---@return HunkHeader
+function M._parse_hunk_header(line)
+	local a_start, a_count, b_start, b_count = line:match("^@@%s+-([%d]+),?([%d]*)%s+%+([%d]+),?([%d]*)%s+@@.*")
+	a_count = a_count ~= "" and tonumber(a_count) or 1
+	b_count = b_count ~= "" and tonumber(b_count) or 1
+	a_start, b_start = tonumber(a_start), tonumber(b_start)
+	if a_start == nil then
+		a_count = nil
+	end
+	if b_start == nil then
+		b_count = nil
+	end
+	return {
+		prev = {
+			start = a_start,
+			count = a_count,
+		},
+		now = {
+			start = b_start,
+			count = b_count,
+		},
+	}
+end
+
+---@class Hunk
+---@field lstart number
+---@field lend number
+---@field type "a" | "m" | "d"
+
+---Parses git format diff and returns table with
+---lines as key and status as value
+---@param input string
+function M.parse_hunks(input)
+	input = vim.trim(input)
+	---@type Hunk[]
+	local diff = {}
+
+	if #input == 0 then
+		return diff
+	end
+
+	for _, line in ipairs(vim.split(input, "\n")) do
+		line = vim.trim(line)
+		if #line >= 2 and string.sub(line, 1, 2) == "@@" then
+			local header = M._parse_hunk_header(line)
+			--- Only add lines
+			if header.prev.count == 0 and header.now.count ~= 0 then
+				table.insert(
+					diff,
+					{ type = "a", lstart = header.now.start, lend = header.now.start + header.now.count - 1 }
+				)
+			--- Only remove lines
+			elseif header.now.count == 0 and header.prev.count ~= 0 then
+				table.insert(diff, { type = "d", lstart = header.now.start, lend = header.now.start })
+			--- Both added and removed lines
+			else
+				table.insert(
+					diff,
+					{ type = "m", lstart = header.now.start, lend = header.now.start + header.now.count - 1 }
+				)
+			end
+		end
+	end
+
+	return diff
+end
+
+return M
