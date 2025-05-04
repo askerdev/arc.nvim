@@ -1,0 +1,1 @@
+require("arc.signs").setup()
