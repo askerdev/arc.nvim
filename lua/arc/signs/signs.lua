@@ -4,6 +4,12 @@ local M = {}
 
 M.signs = {}
 
+function M.is_arc_repo()
+	local ok, root = pcall(vim.fn.system, "arc root")
+
+	return ok and not vim.startswith(vim.trim(root), "Not a mounted arc repository.")
+end
+
 ---@param bufnr number
 ---@param type "a" | "m" |"d"
 ---@param lstart number
@@ -14,6 +20,10 @@ function M.place_sign(bufnr, type, lstart, lend)
 		["m"] = "ArcSign_M",
 		["d"] = "ArcSign_D",
 	}
+
+	if lstart == 0 or lend == 0 then
+		return
+	end
 
 	for lnum = lstart, lend do
 		local id = vim.fn.sign_place(0, "arc_diff", sign_name[type], bufnr, { lnum = lnum, priority = 10 })
@@ -29,7 +39,7 @@ end
 
 ---@param bufnr number
 function M.place(bufnr)
-	local diff_output = vim.trim(vim.fn.system("arc diff -U0 HEAD"))
+	local diff_output = vim.trim(vim.fn.system("arc diff -U0 HEAD " .. vim.fn.expand("%")))
 	local hunks = diff.parse_hunks(diff_output)
 
 	for _, hunk in ipairs(hunks) do
@@ -47,6 +57,10 @@ function M.clean(bufnr)
 end
 
 function M.setup()
+	if not M.is_arc_repo() then
+		return
+	end
+
 	vim.api.nvim_set_hl(0, "ArcSignDelete", { fg = "#ff2222", bold = true })
 	vim.api.nvim_set_hl(0, "ArcSignAdd", { fg = "#449944", bold = true })
 	vim.api.nvim_set_hl(0, "ArcSignChange", { fg = "#bbbb00", bold = true })
