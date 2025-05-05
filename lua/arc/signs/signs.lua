@@ -22,6 +22,8 @@ function M.place_sign(bufnr, type, lstart, lend)
 	}
 
 	if lstart == 0 or lend == 0 then
+		local id = vim.fn.sign_place(0, "arc_diff", "ArcSign_TopD", bufnr, { lnum = 1, priority = 10 })
+		table.insert(M.signs, id)
 		return
 	end
 
@@ -67,6 +69,7 @@ function M.setup()
 	vim.fn.sign_define("ArcSign_A", { text = "", numhl = "DiffAdd" })
 	vim.fn.sign_define("ArcSign_M", { text = "", numhl = "DiffChange" })
 	vim.fn.sign_define("ArcSign_D", { text = "_", texthl = "ArcSignDelete" })
+	vim.fn.sign_define("ArcSign_TopD", { text = "‾", texthl = "ArcSignDelete" })
 
 	local group = vim.api.nvim_create_augroup("ArcSign_Group", { clear = true })
 
