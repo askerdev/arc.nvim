@@ -1,3 +1,4 @@
+local coro = require("arc.coro")
 local M = {}
 
 function M.lazy_module(path)
@@ -21,6 +22,28 @@ function M.lazy_module(path)
 	})
 
 	return LazyModule
+end
+
+---@param cmd string[]
+---@param opts? vim.SystemOpts
+---@return vim.SystemCompleted
+function M.co_system(cmd, opts)
+	return coro.create_task(function(callback)
+		vim.system(cmd, opts or {}, function(result)
+			if result.stdout then
+				result.stdout = vim.trim(result.stdout)
+			end
+			callback(result)
+		end)
+	end)
+end
+
+function M.map(array, func)
+	local new_array = {}
+	for i, v in pairs(array) do
+		new_array[i] = func(v)
+	end
+	return new_array
 end
 
 return M

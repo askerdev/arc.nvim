@@ -33,44 +33,71 @@ function M._parse_hunk_header(line)
 	}
 end
 
----@class Hunk
+---@class arc.Hunk
 ---@field lstart number
 ---@field lend number
 ---@field type "a" | "m" | "d"
+---@field raw string[]
 
 ---Parses git format diff and returns table with
 ---lines as key and status as value
 ---@param input string
 function M.parse_hunks(input)
 	input = vim.trim(input)
-	---@type Hunk[]
+	---@type arc.Hunk[]
 	local diff = {}
 
 	if #input == 0 then
 		return diff
 	end
 
+	local current_hunk = nil
+	local current_raw_hunk = {}
+
 	for _, line in ipairs(vim.split(input, "\n")) do
 		line = vim.trim(line)
+		--- Hunk header
 		if #line >= 2 and string.sub(line, 1, 2) == "@@" then
+			if current_hunk ~= nil then
+				current_hunk.raw = current_raw_hunk
+				table.insert(diff, current_hunk)
+				current_hunk = nil
+				current_raw_hunk = {}
+			end
+
 			local header = M._parse_hunk_header(line)
 			--- Only add lines
 			if header.prev.count == 0 and header.now.count ~= 0 then
-				table.insert(
-					diff,
-					{ type = "a", lstart = header.now.start, lend = header.now.start + header.now.count - 1 }
-				)
+				current_hunk = {
+					type = "a",
+					lstart = header.now.start,
+					lend = header.now.start + header.now.count - 1,
+				}
 			--- Only remove lines
 			elseif header.now.count == 0 and header.prev.count ~= 0 then
-				table.insert(diff, { type = "d", lstart = header.now.start, lend = header.now.start })
+				current_hunk = {
+					type = "d",
+					lstart = header.now.start,
+					lend = header.now.start,
+				}
 			--- Both added and removed lines
 			else
-				table.insert(
-					diff,
-					{ type = "m", lstart = header.now.start, lend = header.now.start + header.now.count - 1 }
-				)
+				current_hunk = {
+					type = "m",
+					lstart = header.now.start,
+					lend = header.now.start + header.now.count - 1,
+				}
 			end
+		elseif #line >= 3 and (vim.startswith(line, "+++") or vim.startswith(line, "---")) then
+		elseif #line >= 1 and (vim.startswith(line, "-") or vim.startswith(line, "+")) then
+			table.insert(current_raw_hunk, line)
 		end
+	end
+	if current_hunk ~= nil then
+		current_hunk.raw = current_raw_hunk
+		table.insert(diff, current_hunk)
+		current_hunk = nil
+		current_raw_hunk = {}
 	end
 
 	return diff
