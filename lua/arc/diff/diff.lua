@@ -34,10 +34,12 @@ function M._parse_hunk_header(line)
 end
 
 ---@class arc.Hunk
----@field lstart number
----@field lend number
----@field type "a" | "m" | "d"
----@field raw string[]
+---@field lstart number Start line number
+---@field lend number End line number
+---@field type "a" | "m" | "d" Type of hunk
+---@field raw string[] Raw arc diff
+---@field lprev string[] Deleted lines
+---@field lnow string[] Added lines
 
 ---Parses git format diff and returns table with
 ---lines as key and status as value
@@ -98,6 +100,22 @@ function M.parse_hunks(input)
 		table.insert(diff, current_hunk)
 		current_hunk = nil
 		current_raw_hunk = {}
+	end
+
+	for _, hunk in ipairs(diff) do
+		local lprev = {}
+		local lnow = {}
+
+		for _, line in ipairs(hunk.raw) do
+			if vim.startswith(line, "-") then
+				table.insert(lprev, line:sub(2))
+			elseif vim.startswith(line, "+") then
+				table.insert(lnow, line:sub(2))
+			end
+		end
+
+		hunk.lprev = lprev
+		hunk.lnow = lnow
 	end
 
 	return diff

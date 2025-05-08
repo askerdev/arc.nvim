@@ -1,5 +1,7 @@
 ---@module 'snacks'
 
+local Popup = require("nui.popup")
+local event = require("nui.utils.autocmd").event
 local coro = require("arc.coro")
 local misc = require("arc.misc")
 local diff = require("arc.diff")
@@ -169,20 +171,48 @@ function M.hunk_preview()
 		return
 	end
 
-	local win = Snacks.win({
-		text = misc.map(hunk.raw, function(x)
-			return x:sub(2)
-		end),
-		width = 0.5,
-		height = math.min(#hunk.raw, 5),
-		border = "rounded",
-		relative = "cursor",
-		wo = {
-			spell = false,
-			wrap = false,
-			signcolumn = "no",
+	local popup = Popup({
+		enter = false,
+		focusable = false,
+		border = {
+			style = "rounded",
+		},
+		win_options = {
+			wrap = true,
 		},
 	})
+
+	popup:update_layout({
+		relative = "cursor",
+		position = {
+			row = 1,
+			col = 1,
+		},
+		size = {
+			width = "100%",
+			height = math.min(#hunk.raw, 5),
+		},
+	})
+
+	popup:map("n", "q", function()
+		popup:unmount()
+	end)
+
+	popup:mount()
+
+	popup:on(event.BufLeave, function()
+		popup:unmount()
+	end)
+
+	vim.api.nvim_buf_set_lines(
+		popup.bufnr,
+		0,
+		1,
+		false,
+		misc.map(hunk.raw, function(x)
+			return x:sub(2)
+		end)
+	)
 
 	local signs = {}
 	for i, hunk_line in ipairs(hunk.raw) do
@@ -190,15 +220,31 @@ function M.hunk_preview()
 		if vim.startswith(hunk_line, "+") then
 			type = "ArcLine_A"
 		end
-		local sign_id = vim.fn.sign_place(0, "arc_diff", type, win.buf, { lnum = i, priority = 10 })
+		local sign_id = vim.fn.sign_place(0, "arc_diff", type, popup.bufnr, { lnum = i, priority = 10 })
 		table.insert(signs, sign_id)
 	end
 
-	win.opts.on_close = function()
-		for _, sign_id in ipairs(signs) do
-			M.unplace_sign(win.buf, sign_id)
-		end
+	vim.api.nvim_create_autocmd({ "CursorMoved" }, {
+		buffer = 0,
+		once = true,
+		callback = function()
+			for _, sign_id in ipairs(signs) do
+				vim.fn.sign_unplace("arc_diff", { buffer = popup.bufnr, id = sign_id })
+			end
+			popup:unmount()
+		end,
+	})
+end
+
+function M.hunk_reset()
+	local hunk = M.find_hunk_under_cursor()
+
+	if hunk == nil then
+		return
 	end
+
+	vim.api.nvim_buf_set_lines(0, hunk.lstart - 1, hunk.lend, false, hunk.lprev)
+	vim.api.nvim_cmd({ cmd = "w" }, {})
 end
 
 return M
